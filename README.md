@@ -1,27 +1,29 @@
 # 🏀 NBA Controller Hub
 
-> **Experience the NBA Universe like never before - Controlled by you.**
+> **A personal project to explore NBA teams with a gamepad, just for fun.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.0-blue)](https://tailwindcss.com/)
 [![Vercel](https://img.shields.io/badge/Vercel-Deployed-black)](https://nba-controller-fx9qamnif-asytuyfs-projects.vercel.app)
 
-## 🌐 Live Demo
+## Check it out!
 
-Check out the live deployment here: **[NBA Controller Hub Live](https://nba-controller-fx9qamnif-asytuyfs-projects.vercel.app)**
+You can see the app live here: **[nba-controller-fx9qamnif-asytuyfs-projects.vercel.app](https://nba-controller-fx9qamnif-asytuyfs-projects.vercel.app)**
+This link is public, so anyone can check it out.
 
-## 🌟 Overview
+## About this project
 
-Welcome to the **NBA Controller Hub**, a futuristic, gamepad-first web application that lets you explore the NBA landscape with the tactile feel of a console interface. Navigate the map, check team rosters, and track your basketball workouts using your controller or keyboard.
+This is a web app made with Next.js where you can look at NBA teams. It's built to work well with a game controller, like a console game menu.
 
-## 🎮 Key Features
+## Features
 
--   **Interactive Map Navigation**: seamless exploration of all 30 NBA teams across the US map.
--   **Gamepad Support**: Fully optimized for game controllers (D-Pad navigation, button interactions).
--   **Team Hubs**: Detailed views for each franchise, including rosters and stats.
--   **Workout Tracking**: Log and visualize your training sessions.
--   **Immersive UI**: Dark mode aesthetic with neon glows, glassmorphism, and smooth Framer Motion animations.
+-   **NBA Map**: See all 30 NBA teams on a map of the US.
+-   **Gamepad Control**: Use your game controller (D-Pad, buttons) to move around and select things.
+-   **Team Pages**: Each team has its own page to see players and some stats.
+-   **Workout Tracker**: There's also a section to help track basketball workouts.
+-   **Cool Look**: It has a dark theme with some neon colors and animations.
+
 
 ## 🚀 Getting Started
 
