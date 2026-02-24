@@ -1,0 +1,239 @@
+{
+  "workouts": [
+    {
+      "id": "push",
+      "name": "Push Power",
+      "description": "Chest, shoulders, and triceps",
+      "estimatedMinutes": 60,
+      "color": "#ef4444",
+      "exercises": [
+        {
+          "id": "bench-press",
+          "name": "barbell bench press",
+          "sets": 4,
+          "reps": 8,
+          "weight": 185,
+          "restSeconds": 90
+        },
+        {
+          "id": "ohp",
+          "name": "barbell shoulder press",
+          "sets": 4,
+          "reps": 10,
+          "weight": 95,
+          "restSeconds": 90
+        },
+        {
+          "id": "incline-db",
+          "name": "incline dumbbell press",
+          "sets": 3,
+          "reps": 12,
+          "weight": 60,
+          "restSeconds": 60
+        },
+        {
+          "id": "tricep-pushdown",
+          "name": "cable pushdown",
+          "sets": 3,
+          "reps": 15,
+          "restSeconds": 45
+        },
+        {
+          "id": "lateral-raises",
+          "name": "dumbbell lateral raise",
+          "sets": 3,
+          "reps": 15,
+          "weight": 20,
+          "restSeconds": 45
+        }
+      ]
+    },
+    {
+      "id": "pull",
+      "name": "Pull Strength",
+      "description": "Back and biceps",
+      "estimatedMinutes": 65,
+      "color": "#3b82f6",
+      "exercises": [
+        {
+          "id": "deadlift",
+          "name": "barbell deadlift",
+          "sets": 4,
+          "reps": 6,
+          "weight": 275,
+          "restSeconds": 120
+        },
+        {
+          "id": "pullups",
+          "name": "pull-up",
+          "sets": 4,
+          "reps": 10,
+          "restSeconds": 90
+        },
+        {
+          "id": "barbell-rows",
+          "name": "barbell bent over row",
+          "sets": 4,
+          "reps": 10,
+          "weight": 135,
+          "restSeconds": 90
+        },
+        {
+          "id": "face-pulls",
+          "name": "cable rear delt fly",
+          "sets": 3,
+          "reps": 15,
+          "restSeconds": 45
+        },
+        {
+          "id": "bicep-curls",
+          "name": "dumbbell curl",
+          "sets": 3,
+          "reps": 12,
+          "weight": 30,
+          "restSeconds": 45
+        }
+      ]
+    },
+    {
+      "id": "legs",
+      "name": "Leg Day",
+      "description": "Quads, hamstrings, and calves",
+      "estimatedMinutes": 75,
+      "color": "#22c55e",
+      "exercises": [
+        {
+          "id": "squats",
+          "name": "barbell full squat",
+          "sets": 4,
+          "reps": 8,
+          "weight": 225,
+          "restSeconds": 120
+        },
+        {
+          "id": "leg-press",
+          "name": "leg press",
+          "sets": 4,
+          "reps": 12,
+          "weight": 400,
+          "restSeconds": 90
+        },
+        {
+          "id": "rdl",
+          "name": "barbell romanian deadlift",
+          "sets": 3,
+          "reps": 10,
+          "weight": 185,
+          "restSeconds": 90
+        },
+        {
+          "id": "leg-curls",
+          "name": "seated leg curl",
+          "sets": 3,
+          "reps": 12,
+          "restSeconds": 60
+        },
+        {
+          "id": "calf-raises",
+          "name": "standing calf raise",
+          "sets": 4,
+          "reps": 15,
+          "restSeconds": 45
+        }
+      ]
+    },
+    {
+      "id": "upper",
+      "name": "Upper Body",
+      "description": "Full upper body workout",
+      "estimatedMinutes": 55,
+      "color": "#a855f7",
+      "exercises": [
+        {
+          "id": "db-bench",
+          "name": "dumbbell bench press",
+          "sets": 4,
+          "reps": 10,
+          "weight": 70,
+          "restSeconds": 90
+        },
+        {
+          "id": "seated-rows",
+          "name": "cable seated row",
+          "sets": 4,
+          "reps": 12,
+          "restSeconds": 60
+        },
+        {
+          "id": "arnold-press",
+          "name": "arnold press",
+          "sets": 3,
+          "reps": 10,
+          "weight": 40,
+          "restSeconds": 60
+        },
+        {
+          "id": "lat-pulldown",
+          "name": "lat pulldown",
+          "sets": 3,
+          "reps": 12,
+          "restSeconds": 60
+        },
+        {
+          "id": "skull-crushers",
+          "name": "ez bar lying close grip skull crusher",
+          "sets": 3,
+          "reps": 12,
+          "restSeconds": 45
+        },
+        {
+          "id": "hammer-curls",
+          "name": "dumbbell hammer curl",
+          "sets": 3,
+          "reps": 12,
+          "weight": 30,
+          "restSeconds": 45
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "name": "Core Blast",
+      "description": "Abs and core stability",
+      "estimatedMinutes": 25,
+      "color": "#f59e0b",
+      "exercises": [
+        {
+          "id": "plank",
+          "name": "front plank",
+          "sets": 3,
+          "reps": 60,
+          "notes": "60 seconds hold",
+          "restSeconds": 30
+        },
+        {
+          "id": "cable-crunches",
+          "name": "cable crunch",
+          "sets": 3,
+          "reps": 20,
+          "restSeconds": 45
+        },
+        {
+          "id": "hanging-leg-raises",
+          "name": "hanging leg raise",
+          "sets": 3,
+          "reps": 15,
+          "restSeconds": 45
+        },
+        {
+          "id": "russian-twists",
+          "name": "russian twist",
+          "sets": 3,
+          "reps": 20,
+          "notes": "20 per side",
+          "restSeconds": 30
+        }
+      ]
+    }
+  ]
+}
