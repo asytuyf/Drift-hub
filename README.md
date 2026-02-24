@@ -1,6 +1,6 @@
 # 🏀 NBA Controller Hub {still under development}
 
-> **A personal project to explore NBA teams with a gamepad, just for fun.**
+> **A personal project to explore NBA teams with a gamepad and track my gym sessions basically anything sporty. just for fun.**
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.0-blue)](https://tailwindcss.com/)
@@ -25,7 +25,3 @@ This is a web app made with Next.js where you can look at NBA teams. It's built 
 -   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 -   **Animations**: [Framer Motion](https://www.framer.com/motion/)
 -   **Icons**: [Lucide React](https://lucide.dev/)
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to open issues or submit pull requests.
