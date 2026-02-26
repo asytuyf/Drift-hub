@@ -1,220 +1,446 @@
-.map-container {
-  --city-radius: 2rem;
-  --city-sign-color-back: #00c080;
-  --city-sign-color-font: #fff;
-  --city-pin-size-font: 1.4rem;
+/* Full page map container */
+.mapPage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0c1929 0%, #0a1628 50%, #051525 100%);
+}
 
-  border-radius: 1rem;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-  line-height: 1;
-  min-width: 15rem;
-  position: relative;
-  width: 100%;
-  aspect-ratio: 5/3;
+/* Ocean background with waves */
+.ocean {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    #0d2847 0%,
+    #0f3460 30%,
+    #16466a 60%,
+    #1a5276 100%
+  );
   overflow: hidden;
 }
 
-/* Map - Background */
-.map-background {
-  border-radius: inherit;
-  left: 0;
+.wave {
   position: absolute;
-  top: 0;
-  width: 100%;
+  bottom: 0;
+  left: -50%;
+  width: 200%;
   height: 100%;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120'%3E%3Cpath fill='%23ffffff08' d='M0,60 C200,120 400,0 600,60 C800,120 1000,0 1200,60 L1200,120 L0,120 Z'/%3E%3C/svg%3E") repeat-x;
+  background-size: 50% 100px;
+  animation: waveMove 8s linear infinite;
+  opacity: 0.6;
 }
 
-/* Map - Cities */
-.map-cities {
+.wave:nth-child(2) {
+  bottom: 10px;
+  opacity: 0.4;
+  animation-duration: 12s;
+}
+
+.wave:nth-child(3) {
+  bottom: 20px;
+  opacity: 0.2;
+  animation-duration: 16s;
+}
+
+@keyframes waveMove {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(50%); }
+}
+
+/* Fish-eye 3D container */
+.fishEyeContainer {
+  position: absolute;
+  inset: 5%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s ease-out;
+  transform-style: preserve-3d;
+}
+
+/* The map globe */
+.mapGlobe {
+  position: relative;
   width: 100%;
   height: 100%;
+  max-width: 1400px;
+  max-height: 800px;
+  border-radius: 50% / 40%;
+  background: linear-gradient(
+    145deg,
+    #ffffff 0%,
+    #f8fafc 40%,
+    #f1f5f9 100%
+  );
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.1),
+    0 20px 60px rgba(0, 0, 0, 0.4),
+    inset 0 -20px 60px rgba(0, 0, 0, 0.1),
+    inset 0 20px 60px rgba(255, 255, 255, 0.3);
+  overflow: hidden;
 }
-.map-city {
-  border-radius: var(--city-radius);
-  left: calc(var(--x) * 1% - var(--city-radius));
-  padding: var(--city-radius);
+
+.mapSvg {
   position: absolute;
+  inset: 10%;
+  width: 80%;
+  height: 80%;
+}
+
+/* Easter eggs */
+.easterEgg {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.easterEgg:hover {
+  opacity: 1;
+}
+
+.easterEggEmoji {
+  font-size: 1.2rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.easterEggLabel {
+  font-size: 0.6rem;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.easterEggOcean {
+  opacity: 0.4;
+}
+
+.easterEggOcean .easterEggEmoji {
+  font-size: 1.5rem;
+  animation: float 3s ease-in-out infinite;
+}
+
+.easterEggQuote {
+  opacity: 0.5;
+}
+
+.easterEggQuote .easterEggLabel {
+  font-size: 0.5rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* Team pins */
+.mapCities {
+  position: absolute;
+  inset: 10%;
+  width: 80%;
+  height: 80%;
+}
+
+.mapCity {
+  --city-radius: 1.5rem;
+  --city-sign-color-back: #00c080;
+  --city-sign-color-font: #fff;
+  --city-pin-size-font: 1.8rem;
+
+  position: absolute;
+  left: calc(var(--x) * 1% - var(--city-radius));
   top: calc(var(--y) * 1% - var(--city-radius));
+  padding: var(--city-radius);
+  border-radius: var(--city-radius);
   background: transparent;
   border: none;
   cursor: pointer;
   transition: transform 150ms ease;
+  z-index: 10;
 }
-.map-city::after,
-.map-city::before {
+
+.mapCity::after,
+.mapCity::before {
   font-size: var(--city-pin-size-font);
 }
-.map-city::before {
+
+.mapCity::before {
   content: "•";
-  left: calc(-50% + var(--city-radius));
   position: absolute;
+  left: calc(-50% + var(--city-radius));
   top: calc(-0.65em + var(--city-radius));
-  text-align: center;
-  text-shadow: 0 0 8px rgba(6, 182, 212, 0.8);
   width: 100%;
-  color: #06b6d4;
+  text-align: center;
+  color: #3b82f6;
+  text-shadow: 0 0 12px rgba(59, 130, 246, 0.9);
   transition: all 200ms ease;
 }
-.map-city::after {
-  clip-path: inset(-0.5em 0 0 0);
+
+.mapCity::after {
   content: "📍";
-  left: calc(-50% + var(--city-radius));
   position: absolute;
+  left: calc(-50% + var(--city-radius));
   top: calc(-1em + var(--city-radius));
-  text-align: center;
-  transition: all 300ms ease-out;
   width: 100%;
+  text-align: center;
+  clip-path: inset(-0.5em 0 0 0);
+  transition: all 300ms ease-out;
   z-index: var(--y);
 }
 
-/* Map - Sign */
-.map-city__label {
-  display: none;
-  left: calc(-5em + 50%);
-  position: absolute;
-  text-align: center;
-  width: 10em;
-  z-index: 999;
-}
-.map-city__sign {
-  align-items: center;
-  background-color: var(--city-sign-color-back);
-  border-radius: 0.4rem;
-  border: 0.15em solid var(--city-sign-color-font);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-  color: var(--city-sign-color-font);
-  column-gap: 0.3em;
-  display: flex;
-  font-weight: 700;
-  justify-content: center;
-  margin: 0 auto;
-  max-width: 100%;
-  overflow: hidden;
-  padding: 0.5em 0.8em 0.5em 0.5em;
-  text-overflow: ellipsis;
-  text-wrap: nowrap;
-  width: max-content;
-  font-size: 0.9rem;
-}
-.map-city__sign::before {
-  content: attr(data-icon);
-}
-
-/************/
-/* Tracking */
-/************/
-
-/* Map - Cities (hover and controller focus) */
-.map-city:hover::after,
-.map-city--focused::after {
+/* Hover/focus states */
+.mapCity:hover::after,
+.mapCity--focused::after {
   clip-path: inset(-0.5em 0 0.5em 0);
   transform: translateY(0.5em);
 }
 
-/* Focused state glow */
-.map-city--focused {
+.mapCity--focused {
   z-index: 100;
 }
-.map-city--focused::before {
-  text-shadow: 0 0 20px rgba(6, 182, 212, 1), 0 0 40px rgba(6, 182, 212, 0.8);
+
+.mapCity--focused::before {
+  text-shadow: 0 0 25px rgba(59, 130, 246, 1), 0 0 50px rgba(59, 130, 246, 0.8);
   transform: scale(1.5);
-  color: #22d3ee;
+  color: #2563eb;
 }
 
-/* Map - Sign (hover and controller focus) */
-.map-city:hover .map-city__label,
-.map-city--focused .map-city__label {
-  animation: fadein 300ms forwards ease-out;
+/* City label/sign */
+.mapCity__label {
+  display: none;
+  position: absolute;
+  left: calc(-5em + 50%);
+  width: 10em;
+  text-align: center;
+  z-index: 999;
+}
+
+.mapCity:hover .mapCity__label,
+.mapCity--focused .mapCity__label {
   display: block;
+  animation: fadein 300ms forwards ease-out;
 }
 
-.map-city:hover .map-city__sign.anim::before,
-.map-city--focused .map-city__sign.anim::before {
+.mapCity__sign {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  column-gap: 0.3em;
+  margin: 0 auto;
+  padding: 0.5em 0.8em 0.5em 0.5em;
+  max-width: 100%;
+  width: max-content;
+  background-color: var(--city-sign-color-back);
+  color: var(--city-sign-color-font);
+  border: 0.15em solid var(--city-sign-color-font);
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.mapCity__sign::before {
+  content: attr(data-icon);
+}
+
+/* Animations */
+.anim {}
+
+.mapCity:hover .mapCity__sign.anim::before,
+.mapCity--focused .mapCity__sign.anim::before {
   animation-duration: 500ms;
   animation-fill-mode: forwards;
 }
-.map-city:hover .map-city__sign.anim-grow::before,
-.map-city--focused .map-city__sign.anim-grow::before {
+
+.anim-grow {}
+
+.mapCity:hover .mapCity__sign.anim-grow::before,
+.mapCity--focused .mapCity__sign.anim-grow::before {
   animation-name: grow;
   animation-timing-function: ease-in;
 }
-.map-city:hover .map-city__sign.anim-slidein::before,
-.map-city--focused .map-city__sign.anim-slidein::before {
-  animation-name: slidein;
-  animation-timing-function: ease-out;
-}
 
-/**************/
-/* Animations */
-/**************/
-
-/* Fade in from top */
 @keyframes fadein {
   0% {
     opacity: 0;
     top: calc(var(--city-radius));
   }
-
   100% {
     opacity: 1;
     top: calc(var(--city-radius) + var(--city-pin-size-font) / 2);
   }
 }
 
-/* Grow from the ground */
 @keyframes grow {
-  0% {
-    transform: translate(0, 200%);
-  }
-
-  10% {
-    transform: translate(5%, 180%);
-  }
-
-  20% {
-    transform: translate(-10%, 160%);
-  }
-
-  30% {
-    transform: translate(15%, 140%);
-  }
-
-  40% {
-    transform: translate(-5%, 120%);
-  }
-
-  50% {
-    transform: translate(10%, 100%);
-  }
-
-  60% {
-    transform: translate(-15%, 80%);
-  }
-
-  70% {
-    transform: translate(5%, 60%);
-  }
-
-  80% {
-    transform: translate(0, 40%);
-  }
-
-  90% {
-    transform: translate(0, 20%);
-  }
-
-  100% {
-    transform: translate(0, 0);
-  }
+  0% { transform: translate(0, 200%); }
+  10% { transform: translate(5%, 180%); }
+  20% { transform: translate(-10%, 160%); }
+  30% { transform: translate(15%, 140%); }
+  40% { transform: translate(-5%, 120%); }
+  50% { transform: translate(10%, 100%); }
+  60% { transform: translate(-15%, 80%); }
+  70% { transform: translate(5%, 60%); }
+  80% { transform: translate(0, 40%); }
+  90% { transform: translate(0, 20%); }
+  100% { transform: translate(0, 0); }
 }
 
-/* Slide in from left */
-@keyframes slidein {
-  0% {
-    transform: translateX(-200%);
-  }
+/* Info panel */
+.infoPanel {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  min-width: 260px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+}
 
-  100% {
-    transform: translateX(0);
-  }
+.infoPanelInner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.infoPanelLogo {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.infoPanelLogoImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.infoPanelName {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+}
+
+.infoPanelConf {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.infoPanelStanding {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0.25rem 0 0;
+}
+
+/* Controls hint */
+.controlsHint {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2rem;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  z-index: 100;
+}
+
+.controlsHint kbd {
+  padding: 0.25rem 0.5rem;
+  background: rgba(30, 41, 59, 0.8);
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: #67e8f9;
+}
+
+.controlsDivider {
+  color: #475569;
+}
+
+.controlsMouse {
+  color: #64748b;
+}
+
+/* Team counter */
+.teamCounter {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2rem;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  z-index: 100;
+}
+
+.teamCounterCurrent {
+  color: #67e8f9;
+  font-weight: 700;
+}
+
+.teamCounterDivider {
+  color: #475569;
+  margin: 0 0.25rem;
+}
+
+/* Map title */
+.mapTitle {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  text-align: right;
+  z-index: 100;
+}
+
+.mapTitleText {
+  display: block;
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: white;
+  letter-spacing: 0.1em;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.mapTitleSub {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #67e8f9;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
 }

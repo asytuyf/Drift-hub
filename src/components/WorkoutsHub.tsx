@@ -4,22 +4,63 @@ import { useInput } from "@/lib/gamepad";
 import BackButton from "@/components/BackButton";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Dumbbell, Timer, ChevronRight, Weight, RotateCcw } from "lucide-react";
+import { Dumbbell, Timer, ChevronRight, Weight, RotateCcw, Plus, X, Edit2, Trash2 } from "lucide-react";
 import workoutsData from "@/data/workouts.json";
 import type { Workout, Exercise } from "@/types/workout";
 import { searchExercise, type WgerExercise } from "@/lib/exercisedb";
 
-type ViewMode = "list" | "detail";
+type ViewMode = "list" | "detail" | "addExercise" | "editWorkout";
+
+const STORAGE_KEY = "drift-hub-workouts";
+
+function loadWorkouts(): Workout[] {
+  if (typeof window === "undefined") return workoutsData.workouts;
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return workoutsData.workouts;
+    }
+  }
+  return workoutsData.workouts;
+}
+
+function saveWorkouts(workouts: Workout[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(workouts));
+}
 
 export default function WorkoutsHub() {
   const { input, vibrate } = useInput();
-  const [workouts] = useState<Workout[]>(workoutsData.workouts);
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [focusedWorkoutIndex, setFocusedWorkoutIndex] = useState(0);
   const [focusedExerciseIndex, setFocusedExerciseIndex] = useState(0);
   const [exerciseData, setExerciseData] = useState<Map<string, WgerExercise | null>>(new Map());
   const lastInputTime = useRef(0);
   const INPUT_DELAY = 150;
+
+  // Form state for adding exercise
+  const [newExercise, setNewExercise] = useState<Partial<Exercise>>({
+    name: "",
+    sets: 3,
+    reps: 10,
+    weight: undefined,
+    restSeconds: 60,
+  });
+
+  // Load workouts on mount
+  useEffect(() => {
+    setWorkouts(loadWorkouts());
+  }, []);
+
+  // Save workouts when they change
+  useEffect(() => {
+    if (workouts.length > 0) {
+      saveWorkouts(workouts);
+    }
+  }, [workouts]);
 
   const selectedWorkout = workouts[focusedWorkoutIndex];
   const selectedExercise = selectedWorkout?.exercises[focusedExerciseIndex];
@@ -82,13 +123,72 @@ export default function WorkoutsHub() {
       lastInputTime.current = now;
     }
 
-    // Back (◯ button) - Go back to list
-    if (buttons[1] && viewMode === "detail" && now - lastInputTime.current > 300) {
-      setViewMode("list");
+    // Back (◯ button) - Go back to list or close modal
+    if (buttons[1] && now - lastInputTime.current > 300) {
+      if (viewMode === "addExercise") {
+        setViewMode("detail");
+      } else if (viewMode === "detail") {
+        setViewMode("list");
+      }
       vibrate(50, 0.5, 0);
       lastInputTime.current = now;
     }
-  }, [input, viewMode, focusedWorkoutIndex, workouts, vibrate]);
+
+    // Triangle button (button 3) - Add exercise when in detail view
+    if (buttons[3] && viewMode === "detail" && now - lastInputTime.current > 300) {
+      setViewMode("addExercise");
+      setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined, restSeconds: 60 });
+      vibrate(50, 0.5, 0);
+      lastInputTime.current = now;
+    }
+
+    // Square button (button 2) - Delete exercise when in detail view
+    if (buttons[2] && viewMode === "detail" && selectedExercise && now - lastInputTime.current > 300) {
+      handleDeleteExercise(focusedExerciseIndex);
+      vibrate(50, 0.5, 0);
+      lastInputTime.current = now;
+    }
+  }, [input, viewMode, focusedWorkoutIndex, workouts, vibrate, focusedExerciseIndex, selectedExercise]);
+
+  const handleAddExercise = () => {
+    if (!newExercise.name) return;
+
+    const exercise: Exercise = {
+      id: `custom-${Date.now()}`,
+      name: newExercise.name,
+      sets: newExercise.sets || 3,
+      reps: newExercise.reps || 10,
+      weight: newExercise.weight ? Math.round(newExercise.weight * 2.205) : undefined, // Convert kg to lbs for storage
+      restSeconds: newExercise.restSeconds || 60,
+    };
+
+    setWorkouts(prev => {
+      const updated = [...prev];
+      updated[focusedWorkoutIndex] = {
+        ...updated[focusedWorkoutIndex],
+        exercises: [...updated[focusedWorkoutIndex].exercises, exercise],
+      };
+      return updated;
+    });
+
+    setViewMode("detail");
+    setFocusedExerciseIndex(workouts[focusedWorkoutIndex].exercises.length);
+  };
+
+  const handleDeleteExercise = (index: number) => {
+    setWorkouts(prev => {
+      const updated = [...prev];
+      updated[focusedWorkoutIndex] = {
+        ...updated[focusedWorkoutIndex],
+        exercises: updated[focusedWorkoutIndex].exercises.filter((_, i) => i !== index),
+      };
+      return updated;
+    });
+
+    if (focusedExerciseIndex >= workouts[focusedWorkoutIndex].exercises.length - 1) {
+      setFocusedExerciseIndex(Math.max(0, focusedExerciseIndex - 1));
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[#030305] text-white p-8 pt-24 overflow-hidden relative">
@@ -117,13 +217,123 @@ export default function WorkoutsHub() {
           </div>
         </div>
 
-        {viewMode === "detail" && (
-          <div className="flex items-center gap-3 bg-gray-900/60 border border-gray-800 rounded-full px-4 py-2 backdrop-blur-sm">
-            <Timer size={16} className="text-cyan-400" />
-            <span className="text-sm text-gray-300">{selectedWorkout.estimatedMinutes} min</span>
+        {(viewMode === "detail" || viewMode === "addExercise") && selectedWorkout && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setViewMode("addExercise")}
+              className="flex items-center gap-2 bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 rounded-full px-4 py-2 hover:bg-cyan-500/30 transition-colors"
+            >
+              <Plus size={16} />
+              <span className="text-sm">Add Exercise</span>
+            </button>
+            <div className="flex items-center gap-3 bg-gray-900/60 border border-gray-800 rounded-full px-4 py-2 backdrop-blur-sm">
+              <Timer size={16} className="text-cyan-400" />
+              <span className="text-sm text-gray-300">{selectedWorkout.estimatedMinutes} min</span>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Add Exercise Modal */}
+      <AnimatePresence>
+        {viewMode === "addExercise" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setViewMode("detail")}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-white">Add Exercise</h2>
+                <button
+                  onClick={() => setViewMode("detail")}
+                  className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Exercise Name</label>
+                  <input
+                    type="text"
+                    value={newExercise.name || ""}
+                    onChange={(e) => setNewExercise(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500"
+                    placeholder="e.g., Barbell Squat"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Sets</label>
+                    <input
+                      type="number"
+                      value={newExercise.sets || ""}
+                      onChange={(e) => setNewExercise(prev => ({ ...prev, sets: parseInt(e.target.value) || 0 }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500"
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Reps</label>
+                    <input
+                      type="number"
+                      value={newExercise.reps || ""}
+                      onChange={(e) => setNewExercise(prev => ({ ...prev, reps: parseInt(e.target.value) || 0 }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500"
+                      min="1"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Weight (kg)</label>
+                    <input
+                      type="number"
+                      value={newExercise.weight || ""}
+                      onChange={(e) => setNewExercise(prev => ({ ...prev, weight: parseFloat(e.target.value) || undefined }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500"
+                      placeholder="Optional"
+                      min="0"
+                      step="0.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Rest (seconds)</label>
+                    <input
+                      type="number"
+                      value={newExercise.restSeconds || ""}
+                      onChange={(e) => setNewExercise(prev => ({ ...prev, restSeconds: parseInt(e.target.value) || 0 }))}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500"
+                      min="0"
+                      step="15"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleAddExercise}
+                  disabled={!newExercise.name}
+                  className="w-full mt-4 bg-gradient-to-r from-cyan-500 to-purple-500 text-white font-semibold py-3 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Add Exercise
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {viewMode === "list" ? (
@@ -206,7 +416,7 @@ export default function WorkoutsHub() {
               );
             })}
           </motion.div>
-        ) : (
+        ) : viewMode === "detail" || viewMode === "addExercise" ? (
           <motion.div
             key="detail"
             initial={{ opacity: 0, x: 20 }}
@@ -216,7 +426,7 @@ export default function WorkoutsHub() {
           >
             {/* Exercise List */}
             <div className="lg:col-span-1 space-y-2 max-h-[500px] overflow-y-auto pr-2">
-              {selectedWorkout.exercises.map((exercise, index) => {
+              {selectedWorkout?.exercises.map((exercise, index) => {
                 const isFocused = index === focusedExerciseIndex;
                 return (
                   <motion.div
@@ -230,7 +440,7 @@ export default function WorkoutsHub() {
                     onClick={() => setFocusedExerciseIndex(index)}
                   >
                     <div className="flex justify-between items-center">
-                      <div>
+                      <div className="flex-1">
                         <h4 className={`font-medium text-sm capitalize ${isFocused ? "text-white" : "text-gray-400"}`}>
                           {exercise.name}
                         </h4>
@@ -238,11 +448,24 @@ export default function WorkoutsHub() {
                           {exercise.sets} sets × {exercise.reps} reps
                         </p>
                       </div>
-                      {exercise.weight && (
-                        <div className={`text-sm font-mono ${isFocused ? "text-cyan-400" : "text-gray-600"}`}>
-                          {exercise.weight} lbs
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {exercise.weight && (
+                          <div className={`text-sm font-mono ${isFocused ? "text-cyan-400" : "text-gray-600"}`}>
+                            {Math.round(exercise.weight / 2.205)} kg
+                          </div>
+                        )}
+                        {isFocused && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteExercise(index);
+                            }}
+                            className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {isFocused && (
                       <motion.div
@@ -299,9 +522,9 @@ export default function WorkoutsHub() {
                       </div>
                       <div className="bg-gray-950/50 p-4 rounded-xl border border-gray-800/50 text-center">
                         <div className="text-3xl font-bold text-amber-400">
-                          {selectedExercise.weight || "—"}
+                          {selectedExercise.weight ? Math.round(selectedExercise.weight / 2.205) : "—"}
                         </div>
-                        <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">lbs</div>
+                        <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">kg</div>
                       </div>
                     </div>
 
@@ -336,7 +559,7 @@ export default function WorkoutsHub() {
               <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
             </div>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
 
       {/* Controller hints */}
@@ -356,12 +579,26 @@ export default function WorkoutsHub() {
               View
             </span>
           ) : (
-            <span className="flex items-center gap-1.5">
-              <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-red-400 font-mono text-[10px]">
-                ◯
-              </kbd>
-              Back
-            </span>
+            <>
+              <span className="flex items-center gap-1.5">
+                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-red-400 font-mono text-[10px]">
+                  ◯
+                </kbd>
+                Back
+              </span>
+              <span className="flex items-center gap-1.5">
+                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-green-400 font-mono text-[10px]">
+                  △
+                </kbd>
+                Add
+              </span>
+              <span className="flex items-center gap-1.5">
+                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-pink-400 font-mono text-[10px]">
+                  □
+                </kbd>
+                Delete
+              </span>
+            </>
           )}
         </div>
       </div>
