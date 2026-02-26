@@ -158,9 +158,9 @@ export default function NbaMap() {
     console.log("const NBA_TEAMS = [\n" + output.join("\n") + "\n];");
   };
 
-  // Gamepad controls
+  // Gamepad controls - ONLY respond to actual gamepad, not keyboard
   useEffect(() => {
-    if (!input) return;
+    if (!input || input.source === "keyboard" || input.source === "virtual") return;
     const now = Date.now();
 
     // Square button (button 2) for admin mode
@@ -228,17 +228,41 @@ export default function NbaMap() {
       onMouseLeave={handleMouseUp}
       onTouchEnd={handleMouseUp}
       style={{
-        background: "radial-gradient(ellipse at center, #0a3d5f 0%, #052035 60%, #020d18 100%)",
+        background: "radial-gradient(ellipse at center, #1976d2 0%, #1565c0 25%, #0d47a1 50%, #0a3272 75%, #051b3b 100%)",
       }}
     >
-      {/* Ocean waves */}
-      <div className="absolute inset-0 pointer-events-none">
+      {/* Ocean with warm tropical waves */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Light shimmer effect */}
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            background: "radial-gradient(ellipse 100% 50% at 30% 20%, rgba(255,255,255,0.3) 0%, transparent 50%)",
+          }}
+        />
+        {/* Wave pattern 1 */}
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='200' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 25 Q50 10 100 25 T200 25' fill='none' stroke='%2364b5f6' stroke-width='2'/%3E%3C/svg%3E")`,
+            backgroundSize: "200px 50px",
+            animation: "waveShift 10s linear infinite",
+          }}
+        />
+        {/* Wave pattern 2 */}
         <div
           className="absolute inset-0 opacity-15"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='200' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 25 Q50 5 100 25 T200 25' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E")`,
-            backgroundSize: "200px 50px",
-            animation: "waveShift 8s linear infinite",
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='300' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30 Q75 10 150 30 T300 30' fill='none' stroke='%2342a5f5' stroke-width='1.5'/%3E%3C/svg%3E")`,
+            backgroundSize: "300px 60px",
+            animation: "waveShift 14s linear infinite reverse",
+          }}
+        />
+        {/* Subtle sparkles */}
+        <div
+          className="absolute inset-0 opacity-30"
+          style={{
+            backgroundImage: "radial-gradient(circle at 20% 30%, rgba(255,255,255,0.4) 0%, transparent 2%), radial-gradient(circle at 60% 50%, rgba(255,255,255,0.3) 0%, transparent 1.5%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.35) 0%, transparent 2%)",
           }}
         />
       </div>
@@ -364,7 +388,7 @@ export default function NbaMap() {
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: "radial-gradient(ellipse 80% 80% at center, transparent 40%, rgba(0,0,0,0.5) 100%)",
+          background: "radial-gradient(ellipse 85% 85% at center, transparent 50%, rgba(5,27,59,0.6) 100%)",
         }}
       />
 
