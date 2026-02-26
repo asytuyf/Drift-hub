@@ -72,8 +72,8 @@ export default function NbaMap() {
   const svgRef = useRef<SVGSVGElement>(null);
   const animationRef = useRef<number>(0);
 
-  const MAP_SIZE = 350;
-  const PAN_RANGE = 40;
+  const MAP_SIZE = 220; // Smaller, less zoomed
+  const PAN_RANGE = 35;
 
   const getTeamPos = (team: (typeof NBA_TEAMS)[0]) => {
     return teamPositions[team.abbr] || { x: team.x, y: team.y };
@@ -94,15 +94,11 @@ export default function NbaMap() {
     };
   }, []);
 
-  // Mouse/touch handler
-  const handlePointerMove = (clientX: number, clientY: number) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const mouseX = ((clientX - rect.left) / rect.width - 0.5) * 2;
-    const mouseY = ((clientY - rect.top) / rect.height - 0.5) * 2;
-    targetPan.current = { x: -mouseX * PAN_RANGE, y: -mouseY * PAN_RANGE };
-  };
+  // Track touch start for natural drag
+  const touchStart = useRef({ x: 0, y: 0 });
+  const panStart = useRef({ x: 0, y: 0 });
 
+  // Mouse handler - cursor position controls pan
   const handleMouseMove = (e: React.MouseEvent) => {
     if (adminMode && dragging && svgRef.current) {
       const svg = svgRef.current;
@@ -116,12 +112,33 @@ export default function NbaMap() {
       }));
       return;
     }
-    handlePointerMove(e.clientX, e.clientY);
+
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouseX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+    const mouseY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+    targetPan.current = { x: -mouseX * PAN_RANGE, y: -mouseY * PAN_RANGE };
+  };
+
+  // Touch handlers - natural drag direction (finger moves map)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      panStart.current = { x: targetPan.current.x, y: targetPan.current.y };
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+    if (e.touches.length === 1 && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const deltaX = (e.touches[0].clientX - touchStart.current.x) / rect.width * 100;
+      const deltaY = (e.touches[0].clientY - touchStart.current.y) / rect.height * 100;
+
+      // Natural direction: drag right = map moves right
+      targetPan.current = {
+        x: Math.max(-PAN_RANGE, Math.min(PAN_RANGE, panStart.current.x + deltaX)),
+        y: Math.max(-PAN_RANGE, Math.min(PAN_RANGE, panStart.current.y + deltaY)),
+      };
     }
   };
 
@@ -205,6 +222,7 @@ export default function NbaMap() {
       ref={containerRef}
       className="fixed inset-0 w-screen h-screen overflow-hidden touch-none"
       onMouseMove={handleMouseMove}
+      onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
