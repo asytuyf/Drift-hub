@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useInput } from "@/lib/gamepad";
-import clsx from "clsx";
 
 // NBA teams - coordinates shifted right to be on land (viewBox 0 0 1000 589)
 const NBA_TEAMS = [
@@ -55,16 +54,24 @@ const STATE_STAMPS = [
   { x: 770, y: 385, text: "🍑", title: "Georgia" },
 ];
 
+const STORAGE_KEY = "nba-map-focused-team";
+
 export default function NbaMap() {
   const router = useRouter();
   const { input, vibrate } = useInput();
-  const [focusedIndex, setFocusedIndex] = useState(0);
+  // Start focused on Lakers (index 4) or restore from storage
+  const [focusedIndex, setFocusedIndex] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const idx = parseInt(saved);
+        if (idx >= 0 && idx < NBA_TEAMS.length) return idx;
+      }
+    }
+    return 4; // Default to Lakers
+  });
   const lastInputTime = useRef(0);
-
-  // Admin mode (Square button) - hidden
-  const [adminMode, setAdminMode] = useState(false);
-  const [teamPositions, setTeamPositions] = useState<Record<string, { x: number; y: number }>>({});
-  const [dragging, setDragging] = useState<string | null>(null);
+  const mountTime = useRef(Date.now());
 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const targetPan = useRef({ x: 0, y: 0 });
@@ -72,19 +79,22 @@ export default function NbaMap() {
   const svgRef = useRef<SVGSVGElement>(null);
   const animationRef = useRef<number>(0);
 
-  const MAP_SIZE = 220; // Smaller, less zoomed
+  const MAP_SIZE = 220;
   const PAN_RANGE = 35;
 
-  const getTeamPos = (team: (typeof NBA_TEAMS)[0]) => {
-    return teamPositions[team.abbr] || { x: team.x, y: team.y };
-  };
+  const focusedTeam = NBA_TEAMS[focusedIndex];
 
-  // Smooth animation
+  // Save focused team to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, String(focusedIndex));
+  }, [focusedIndex]);
+
+  // Smooth animation for pan
   useEffect(() => {
     const animate = () => {
       setPan((current) => ({
-        x: current.x + (targetPan.current.x - current.x) * 0.04,
-        y: current.y + (targetPan.current.y - current.y) * 0.04,
+        x: current.x + (targetPan.current.x - current.x) * 0.08,
+        y: current.y + (targetPan.current.y - current.y) * 0.08,
       }));
       animationRef.current = requestAnimationFrame(animate);
     };
@@ -94,25 +104,23 @@ export default function NbaMap() {
     };
   }, []);
 
-  // Track touch start for natural drag
+  // Auto-center on focused team when using controller
+  useEffect(() => {
+    // Center map on focused team (500 is center X, 294 is center Y of viewBox)
+    const centerX = (500 - focusedTeam.x) / 500 * PAN_RANGE;
+    const centerY = (294 - focusedTeam.y) / 294 * PAN_RANGE;
+    targetPan.current = {
+      x: Math.max(-PAN_RANGE, Math.min(PAN_RANGE, centerX)),
+      y: Math.max(-PAN_RANGE, Math.min(PAN_RANGE, centerY)),
+    };
+  }, [focusedTeam]);
+
+  // Touch start for natural drag
   const touchStart = useRef({ x: 0, y: 0 });
   const panStart = useRef({ x: 0, y: 0 });
 
-  // Mouse handler - cursor position controls pan
+  // Mouse handler - cursor position controls pan (disabled when using controller)
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (adminMode && dragging && svgRef.current) {
-      const svg = svgRef.current;
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX;
-      pt.y = e.clientY;
-      const svgP = pt.matrixTransform(svg.getScreenCTM()?.inverse());
-      setTeamPositions((prev) => ({
-        ...prev,
-        [dragging]: { x: Math.round(svgP.x), y: Math.round(svgP.y) },
-      }));
-      return;
-    }
-
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
@@ -120,7 +128,7 @@ export default function NbaMap() {
     targetPan.current = { x: -mouseX * PAN_RANGE, y: -mouseY * PAN_RANGE };
   };
 
-  // Touch handlers - natural drag direction (finger moves map)
+  // Touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -133,8 +141,6 @@ export default function NbaMap() {
       const rect = containerRef.current.getBoundingClientRect();
       const deltaX = (e.touches[0].clientX - touchStart.current.x) / rect.width * 100;
       const deltaY = (e.touches[0].clientY - touchStart.current.y) / rect.height * 100;
-
-      // Natural direction: drag right = map moves right
       targetPan.current = {
         x: Math.max(-PAN_RANGE, Math.min(PAN_RANGE, panStart.current.x + deltaX)),
         y: Math.max(-PAN_RANGE, Math.min(PAN_RANGE, panStart.current.y + deltaY)),
@@ -142,80 +148,101 @@ export default function NbaMap() {
     }
   };
 
-  const handleMouseUp = () => {
-    if (dragging) {
-      const pos = teamPositions[dragging];
-      if (pos) console.log(`${dragging}: x: ${pos.x}, y: ${pos.y}`);
-      setDragging(null);
-    }
-  };
-
-  const exportPositions = () => {
-    const output = NBA_TEAMS.map((team) => {
-      const pos = getTeamPos(team);
-      return `  { id: ${team.id}, abbr: "${team.abbr}", name: "${team.name}", city: "${team.city}", color: "${team.color}", x: ${pos.x}, y: ${pos.y}, conference: "${team.conference}", standing: ${team.standing}, logo: "${team.logo}" },`;
-    });
-    console.log("const NBA_TEAMS = [\n" + output.join("\n") + "\n];");
-  };
-
-  // Gamepad controls - ONLY respond to actual gamepad, not keyboard
+  // Gamepad controls
   useEffect(() => {
-    if (!input || input.source === "keyboard" || input.source === "virtual") return;
+    if (!input) return;
     const now = Date.now();
-
-    // Square button (button 2) for admin mode
-    if (input.buttons[2] && now - lastInputTime.current >= 500) {
-      setAdminMode((prev) => !prev);
-      vibrate?.(100);
-      lastInputTime.current = now;
-      return;
-    }
-
-    if (adminMode) return;
+    // Ignore inputs for 500ms after mount to prevent carryover button presses
+    if (now - mountTime.current < 500) return;
     if (now - lastInputTime.current < 180) return;
 
     const axes = input.axes || [0, 0, 0, 0];
     const threshold = 0.5;
     const currentTeam = NBA_TEAMS[focusedIndex];
-    const currentPos = getTeamPos(currentTeam);
 
+    // Navigate to nearest team in the direction pressed
+    // Uses Euclidean distance but only considers teams in the right direction
+
+    // D-pad Right
     if (input.buttons[15] || axes[0] > threshold) {
-      const t = NBA_TEAMS.map((t, i) => ({ ...t, i, pos: getTeamPos(t) }))
-        .filter((t) => t.pos.x > currentPos.x + 20)
-        .sort((a, b) => Math.abs(a.pos.y - currentPos.y) - Math.abs(b.pos.y - currentPos.y));
-      if (t.length > 0) { setFocusedIndex(t[0].i); vibrate?.(30); lastInputTime.current = now; }
-    } else if (input.buttons[14] || axes[0] < -threshold) {
-      const t = NBA_TEAMS.map((t, i) => ({ ...t, i, pos: getTeamPos(t) }))
-        .filter((t) => t.pos.x < currentPos.x - 20)
-        .sort((a, b) => Math.abs(a.pos.y - currentPos.y) - Math.abs(b.pos.y - currentPos.y));
-      if (t.length > 0) { setFocusedIndex(t[0].i); vibrate?.(30); lastInputTime.current = now; }
-    } else if (input.buttons[13] || axes[1] > threshold) {
-      const t = NBA_TEAMS.map((t, i) => ({ ...t, i, pos: getTeamPos(t) }))
-        .filter((t) => t.pos.y > currentPos.y + 20)
-        .sort((a, b) => Math.abs(a.pos.x - currentPos.x) - Math.abs(b.pos.x - currentPos.x));
-      if (t.length > 0) { setFocusedIndex(t[0].i); vibrate?.(30); lastInputTime.current = now; }
-    } else if (input.buttons[12] || axes[1] < -threshold) {
-      const t = NBA_TEAMS.map((t, i) => ({ ...t, i, pos: getTeamPos(t) }))
-        .filter((t) => t.pos.y < currentPos.y - 20)
-        .sort((a, b) => Math.abs(a.pos.x - currentPos.x) - Math.abs(b.pos.x - currentPos.x));
-      if (t.length > 0) { setFocusedIndex(t[0].i); vibrate?.(30); lastInputTime.current = now; }
+      const teamsRight = NBA_TEAMS
+        .map((t, i) => ({ ...t, i }))
+        .filter((t) => t.x > currentTeam.x + 10)
+        .sort((a, b) => {
+          // Simple Euclidean distance
+          const distA = Math.sqrt(Math.pow(a.x - currentTeam.x, 2) + Math.pow(a.y - currentTeam.y, 2));
+          const distB = Math.sqrt(Math.pow(b.x - currentTeam.x, 2) + Math.pow(b.y - currentTeam.y, 2));
+          return distA - distB;
+        });
+      if (teamsRight.length > 0) {
+        setFocusedIndex(teamsRight[0].i);
+        vibrate?.(30);
+        lastInputTime.current = now;
+      }
+    }
+    // D-pad Left
+    else if (input.buttons[14] || axes[0] < -threshold) {
+      const teamsLeft = NBA_TEAMS
+        .map((t, i) => ({ ...t, i }))
+        .filter((t) => t.x < currentTeam.x - 10)
+        .sort((a, b) => {
+          const distA = Math.sqrt(Math.pow(a.x - currentTeam.x, 2) + Math.pow(a.y - currentTeam.y, 2));
+          const distB = Math.sqrt(Math.pow(b.x - currentTeam.x, 2) + Math.pow(b.y - currentTeam.y, 2));
+          return distA - distB;
+        });
+      if (teamsLeft.length > 0) {
+        setFocusedIndex(teamsLeft[0].i);
+        vibrate?.(30);
+        lastInputTime.current = now;
+      }
+    }
+    // D-pad Down
+    else if (input.buttons[13] || axes[1] > threshold) {
+      const teamsBelow = NBA_TEAMS
+        .map((t, i) => ({ ...t, i }))
+        .filter((t) => t.y > currentTeam.y + 10)
+        .sort((a, b) => {
+          const distA = Math.sqrt(Math.pow(a.x - currentTeam.x, 2) + Math.pow(a.y - currentTeam.y, 2));
+          const distB = Math.sqrt(Math.pow(b.x - currentTeam.x, 2) + Math.pow(b.y - currentTeam.y, 2));
+          return distA - distB;
+        });
+      if (teamsBelow.length > 0) {
+        setFocusedIndex(teamsBelow[0].i);
+        vibrate?.(30);
+        lastInputTime.current = now;
+      }
+    }
+    // D-pad Up
+    else if (input.buttons[12] || axes[1] < -threshold) {
+      const teamsAbove = NBA_TEAMS
+        .map((t, i) => ({ ...t, i }))
+        .filter((t) => t.y < currentTeam.y - 10)
+        .sort((a, b) => {
+          const distA = Math.sqrt(Math.pow(a.x - currentTeam.x, 2) + Math.pow(a.y - currentTeam.y, 2));
+          const distB = Math.sqrt(Math.pow(b.x - currentTeam.x, 2) + Math.pow(b.y - currentTeam.y, 2));
+          return distA - distB;
+        });
+      if (teamsAbove.length > 0) {
+        setFocusedIndex(teamsAbove[0].i);
+        vibrate?.(30);
+        lastInputTime.current = now;
+      }
     }
 
+    // Cross button (✕) - Select team
     if (input.buttons[0] && now - lastInputTime.current >= 300) {
       vibrate?.(80);
       router.push(`/team/${NBA_TEAMS[focusedIndex].id}`);
       lastInputTime.current = now;
     }
 
-    // Circle button - back to home
+    // Circle button (○) - Go to home
     if (input.buttons[1] && now - lastInputTime.current >= 300) {
       vibrate?.(50);
       router.push("/");
       lastInputTime.current = now;
     }
-  }, [input, focusedIndex, router, vibrate, adminMode, teamPositions]);
-
-  const focusedTeam = NBA_TEAMS[focusedIndex];
+  }, [input, focusedIndex, router, vibrate]);
 
   return (
     <div
@@ -224,23 +251,18 @@ export default function NbaMap() {
       onMouseMove={handleMouseMove}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onTouchEnd={handleMouseUp}
       style={{
         background: "radial-gradient(ellipse at center, #1976d2 0%, #1565c0 25%, #0d47a1 50%, #0a3272 75%, #051b3b 100%)",
       }}
     >
-      {/* Ocean with warm tropical waves */}
+      {/* Ocean with waves */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {/* Light shimmer effect */}
         <div
           className="absolute inset-0 opacity-20"
           style={{
             background: "radial-gradient(ellipse 100% 50% at 30% 20%, rgba(255,255,255,0.3) 0%, transparent 50%)",
           }}
         />
-        {/* Wave pattern 1 */}
         <div
           className="absolute inset-0 opacity-20"
           style={{
@@ -249,20 +271,12 @@ export default function NbaMap() {
             animation: "waveShift 10s linear infinite",
           }}
         />
-        {/* Wave pattern 2 */}
         <div
           className="absolute inset-0 opacity-15"
           style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='300' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30 Q75 10 150 30 T300 30' fill='none' stroke='%2342a5f5' stroke-width='1.5'/%3E%3C/svg%3E")`,
             backgroundSize: "300px 60px",
             animation: "waveShift 14s linear infinite reverse",
-          }}
-        />
-        {/* Subtle sparkles */}
-        <div
-          className="absolute inset-0 opacity-30"
-          style={{
-            backgroundImage: "radial-gradient(circle at 20% 30%, rgba(255,255,255,0.4) 0%, transparent 2%), radial-gradient(circle at 60% 50%, rgba(255,255,255,0.3) 0%, transparent 1.5%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.35) 0%, transparent 2%)",
           }}
         />
       </div>
@@ -275,7 +289,7 @@ export default function NbaMap() {
           perspectiveOrigin: "50% 50%",
         }}
       >
-        {/* Curved map surface - like Earth's curvature */}
+        {/* Curved map surface */}
         <div
           className="absolute"
           style={{
@@ -290,101 +304,99 @@ export default function NbaMap() {
             willChange: "transform",
           }}
         >
-        {/* USA Map */}
-        <svg
-          ref={svgRef}
-          className="w-full h-full"
-          viewBox="0 0 1000 589"
-          preserveAspectRatio="xMidYMid meet"
-          style={{ filter: "drop-shadow(0 15px 60px rgba(0,0,0,0.7))" }}
-        >
-          <image href="/us-map.svg" x="0" y="0" width="1000" height="589" />
+          {/* USA Map */}
+          <svg
+            ref={svgRef}
+            className="w-full h-full"
+            viewBox="0 0 1000 589"
+            preserveAspectRatio="xMidYMid meet"
+            style={{ filter: "drop-shadow(0 15px 60px rgba(0,0,0,0.7))" }}
+          >
+            <image href="/us-map.svg" x="0" y="0" width="1000" height="589" />
 
-          {/* State stamps */}
-          {STATE_STAMPS.map((stamp, i) => (
-            <g key={i} opacity={0.6}>
-              <text
-                x={stamp.x}
-                y={stamp.y}
-                fontSize="24"
-                textAnchor="middle"
-                style={{ pointerEvents: "none" }}
-              >
-                {stamp.text}
-              </text>
-            </g>
-          ))}
-
-          {/* Pins */}
-          {NBA_TEAMS.map((team, index) => {
-            const isFocused = focusedIndex === index;
-            const pos = getTeamPos(team);
-            const r = isFocused ? 14 : 10;
-
-            return (
-              <g
-                key={team.id}
-                className={adminMode ? "cursor-grab" : "cursor-pointer"}
-                onClick={() => !adminMode && router.push(`/team/${team.id}`)}
-                onMouseEnter={() => !adminMode && setFocusedIndex(index)}
-                onMouseDown={() => adminMode && setDragging(team.abbr)}
-              >
-                {isFocused && (
-                  <circle cx={pos.x} cy={pos.y} r={r + 6} fill={team.color} opacity={0.4} />
-                )}
-                <circle
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={r}
-                  fill={team.color}
-                  stroke="white"
-                  strokeWidth={isFocused ? 2.5 : 1.5}
-                  style={{
-                    filter: isFocused
-                      ? `drop-shadow(0 0 10px ${team.color})`
-                      : "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
-                  }}
-                />
-                <image
-                  href={team.logo}
-                  x={pos.x - (isFocused ? 9 : 6)}
-                  y={pos.y - (isFocused ? 9 : 6)}
-                  width={isFocused ? 18 : 12}
-                  height={isFocused ? 18 : 12}
+            {/* State stamps */}
+            {STATE_STAMPS.map((stamp, i) => (
+              <g key={i} opacity={0.6}>
+                <text
+                  x={stamp.x}
+                  y={stamp.y}
+                  fontSize="24"
+                  textAnchor="middle"
                   style={{ pointerEvents: "none" }}
-                />
-                {(isFocused || adminMode) && (
-                  <>
-                    <rect
-                      x={pos.x - 30}
-                      y={pos.y + r + 5}
-                      width={60}
-                      height={16}
-                      rx={4}
-                      fill={team.color}
-                    />
-                    <text
-                      x={pos.x}
-                      y={pos.y + r + 16}
-                      textAnchor="middle"
-                      fill="white"
-                      fontSize="9"
-                      fontWeight="bold"
-                      fontFamily="system-ui"
-                      style={{ pointerEvents: "none" }}
-                    >
-                      {adminMode ? `${team.abbr} (${pos.x},${pos.y})` : team.city}
-                    </text>
-                  </>
-                )}
+                >
+                  {stamp.text}
+                </text>
               </g>
-            );
-          })}
-        </svg>
+            ))}
+
+            {/* Team pins */}
+            {NBA_TEAMS.map((team, index) => {
+              const isFocused = focusedIndex === index;
+              const r = isFocused ? 14 : 10;
+
+              return (
+                <g
+                  key={team.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/team/${team.id}`)}
+                  onMouseEnter={() => setFocusedIndex(index)}
+                >
+                  {isFocused && (
+                    <circle cx={team.x} cy={team.y} r={r + 6} fill={team.color} opacity={0.4} />
+                  )}
+                  <circle
+                    cx={team.x}
+                    cy={team.y}
+                    r={r}
+                    fill={team.color}
+                    stroke="white"
+                    strokeWidth={isFocused ? 2.5 : 1.5}
+                    style={{
+                      filter: isFocused
+                        ? `drop-shadow(0 0 10px ${team.color})`
+                        : "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
+                    }}
+                  />
+                  <image
+                    href={team.logo}
+                    x={team.x - (isFocused ? 9 : 6)}
+                    y={team.y - (isFocused ? 9 : 6)}
+                    width={isFocused ? 18 : 12}
+                    height={isFocused ? 18 : 12}
+                    style={{ pointerEvents: "none" }}
+                  />
+                  {isFocused && (
+                    <>
+                      <rect
+                        x={team.x - 30}
+                        y={team.y + r + 5}
+                        width={60}
+                        height={16}
+                        rx={4}
+                        fill={team.color}
+                      />
+                      <text
+                        x={team.x}
+                        y={team.y + r + 16}
+                        textAnchor="middle"
+                        fill="white"
+                        fontSize="9"
+                        fontWeight="bold"
+                        fontFamily="system-ui"
+                        style={{ pointerEvents: "none" }}
+                      >
+                        {team.city}
+                      </text>
+                    </>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
         </div>
       </div>
 
-      {/* Subtle edge fade - helps globe effect */}
+      {/* Edge fade for globe effect */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -412,21 +424,7 @@ export default function NbaMap() {
         </div>
       </div>
 
-      {/* Admin panel */}
-      {adminMode && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-red-900/90 backdrop-blur-xl rounded-xl px-5 py-3 border border-red-500/50 z-50 flex items-center gap-4">
-          <span className="text-red-200 text-sm font-bold">ADMIN</span>
-          <span className="text-red-300/70 text-xs">Drag pins</span>
-          <button
-            onClick={exportPositions}
-            className="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded text-white text-xs font-bold"
-          >
-            Export
-          </button>
-        </div>
-      )}
-
-      {/* Back */}
+      {/* Back button */}
       <button
         onClick={() => router.push("/")}
         className="absolute top-4 right-4 sm:top-6 sm:right-6 bg-black/85 rounded-full px-3 py-1.5 sm:px-4 sm:py-2 border border-white/10 text-white text-xs sm:text-sm hover:bg-white/20 transition-colors z-50"
@@ -434,7 +432,7 @@ export default function NbaMap() {
         ← Back
       </button>
 
-      {/* Controls - hide on mobile */}
+      {/* Controls hint */}
       <div className="hidden sm:flex absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/85 px-5 py-2.5 rounded-full border border-white/10 text-sm text-white/60 z-50 items-center gap-3">
         <span><kbd className="px-1.5 py-0.5 bg-white/10 rounded text-xs">D-Pad</kbd> Navigate</span>
         <span className="text-white/30">|</span>

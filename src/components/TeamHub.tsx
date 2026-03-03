@@ -1,7 +1,6 @@
 "use client";
 
 import { useInput } from "@/lib/gamepad";
-import BackButton from "@/components/BackButton";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -42,6 +41,7 @@ export default function TeamHub({ teamId }: TeamHubProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const lastInputTime = useRef(0);
+  const mountTime = useRef(Date.now());
   const INPUT_DELAY = 150;
 
   const team = getTeamById(teamId);
@@ -73,6 +73,8 @@ export default function TeamHub({ teamId }: TeamHubProps) {
     if (!input) return;
 
     const now = Date.now();
+    // Ignore inputs for 500ms after mount to prevent carryover button presses
+    if (now - mountTime.current < 500) return;
     if (now - lastInputTime.current < INPUT_DELAY) return;
 
     const { buttons, axes } = input;
@@ -103,7 +105,7 @@ export default function TeamHub({ teamId }: TeamHubProps) {
       lastInputTime.current = now;
     }
 
-    // Circle button (button 1) - back to map
+    // Circle button (button 1) - go to map
     if (buttons[1] && now - lastInputTime.current > 300) {
       vibrate(50, 0.4, 0);
       router.push("/nba");
@@ -126,7 +128,19 @@ export default function TeamHub({ teamId }: TeamHubProps) {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#030305] text-white overflow-hidden p-8 pt-24 relative">
-      <BackButton />
+      {/* Back button */}
+      <button
+        onClick={() => router.push("/nba")}
+        className="fixed top-6 left-6 flex items-center gap-2 text-gray-500 hover:text-white transition-all z-50 group"
+      >
+        <div className="w-9 h-9 rounded-full bg-gray-900/80 border border-gray-800 flex items-center justify-center group-hover:border-gray-600 group-hover:bg-gray-800 transition-all backdrop-blur-sm">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        </div>
+        <div className="flex items-center gap-1.5 text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="font-medium text-gray-300">Back</span>
+          <kbd className="px-1.5 py-0.5 bg-gray-900 border border-gray-700 rounded text-[10px] text-red-400 font-mono">○</kbd>
+        </div>
+      </button>
 
       {/* Background */}
       <div className="absolute inset-0 pointer-events-none">

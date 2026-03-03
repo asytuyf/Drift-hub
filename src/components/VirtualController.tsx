@@ -168,26 +168,6 @@ export default function VirtualController() {
           </div>
         </div>
 
-        {/* Analog stick placeholders (visual only) */}
-        <div className="absolute bottom-5 left-[4.5rem]">
-          <div className="w-6 h-6 rounded-full bg-gray-950 border border-gray-700/50 shadow-inner" />
-        </div>
-        <div className="absolute bottom-5 right-[4.5rem]">
-          <div className="w-6 h-6 rounded-full bg-gray-950 border border-gray-700/50 shadow-inner" />
-        </div>
-      </div>
-
-      {/* Status */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/80 rounded-full border border-gray-800">
-        <span
-          className={clsx(
-            "w-2 h-2 rounded-full",
-            input?.connected ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]" : "bg-red-500"
-          )}
-        />
-        <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">
-          {input?.source || "none"}
-        </span>
       </div>
     </div>
   );

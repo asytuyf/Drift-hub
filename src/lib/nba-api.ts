@@ -55,15 +55,12 @@ export async function fetchTeamGames(teamId: number): Promise<NbaGame[]> {
     const response = await fetch(`${API_BASE}/games?teamId=${bdlTeamId}`);
 
     if (!response.ok) {
-      console.error("API error:", response.status);
       return getFallbackGames(teamId);
     }
 
     const data = await response.json();
 
-    // API route returns error object if no key configured
     if (data.error) {
-      console.warn("API:", data.error);
       return getFallbackGames(teamId);
     }
 
@@ -105,8 +102,7 @@ export async function fetchTeamGames(teamId: number): Promise<NbaGame[]> {
         },
         visitor_team_score: game.visitor_team_score,
       }));
-  } catch (error) {
-    console.error("Error fetching games:", error);
+  } catch {
     return getFallbackGames(teamId);
   }
 }
@@ -120,15 +116,12 @@ export async function fetchPlayersByTeam(teamId: number): Promise<NbaPlayer[]> {
     const response = await fetch(`${API_BASE}/roster?teamId=${bdlTeamId}`);
 
     if (!response.ok) {
-      console.error("API error:", response.status);
       return getFallbackRoster(teamId);
     }
 
     const data = await response.json();
 
-    // API route returns error object if no key configured
     if (data.error) {
-      console.warn("API:", data.error);
       return getFallbackRoster(teamId);
     }
 
@@ -159,8 +152,7 @@ export async function fetchPlayersByTeam(teamId: number): Promise<NbaPlayer[]> {
         name: player.team.name,
       },
     }));
-  } catch (error) {
-    console.error("Error fetching roster:", error);
+  } catch {
     return getFallbackRoster(teamId);
   }
 }

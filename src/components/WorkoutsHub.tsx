@@ -3,15 +3,16 @@
 import { useInput } from "@/lib/gamepad";
 import BackButton from "@/components/BackButton";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Dumbbell, Timer, ChevronRight, Weight, RotateCcw, Plus, X, Edit2, Trash2 } from "lucide-react";
+import { Dumbbell, Timer, ChevronRight, Weight, RotateCcw, Plus, X, Trash2, Lock, Unlock } from "lucide-react";
 import workoutsData from "@/data/workouts.json";
 import type { Workout, Exercise } from "@/types/workout";
 import { searchExercise, type WgerExercise } from "@/lib/exercisedb";
 
-type ViewMode = "list" | "detail" | "addExercise" | "editWorkout";
+type ViewMode = "list" | "detail" | "addExercise" | "password";
 
-const STORAGE_KEY = "drift-hub-workouts";
+const STORAGE_KEY = "drift-workouts-exercises";
 
 function loadWorkouts(): Workout[] {
   if (typeof window === "undefined") return workoutsData.workouts;
@@ -32,14 +33,24 @@ function saveWorkouts(workouts: Workout[]) {
 }
 
 export default function WorkoutsHub() {
+  const router = useRouter();
   const { input, vibrate } = useInput();
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [focusedWorkoutIndex, setFocusedWorkoutIndex] = useState(0);
   const [focusedExerciseIndex, setFocusedExerciseIndex] = useState(0);
   const [exerciseData, setExerciseData] = useState<Map<string, WgerExercise | null>>(new Map());
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // PIN pad state (4 digits)
+  const [pinDigits, setPinDigits] = useState([0, 0, 0, 0]);
+  const [pinIndex, setPinIndex] = useState(0);
+  const [pinError, setPinError] = useState(false);
+
   const lastInputTime = useRef(0);
+  const mountTime = useRef(Date.now());
   const INPUT_DELAY = 150;
+  const PIN_INPUT_DELAY = 120;
 
   // Form state for adding exercise
   const [newExercise, setNewExercise] = useState<Partial<Exercise>>({
@@ -81,41 +92,147 @@ export default function WorkoutsHub() {
     }
   }, [selectedWorkout, fetchExerciseImages]);
 
+  // Verify PIN against environment variable
+  const verifyPin = async (pin: string) => {
+    try {
+      const res = await fetch("/api/verify-admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      return data.success === true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handlePinSubmit = async () => {
+    const pin = pinDigits.join("");
+    const isValid = await verifyPin(pin);
+
+    if (isValid) {
+      setIsAdmin(true);
+      setViewMode("list");
+      setPinDigits([0, 0, 0, 0]);
+      setPinIndex(0);
+      setPinError(false);
+      vibrate(100, 1.0, 1.0);
+    } else {
+      setPinError(true);
+      vibrate(200, 0.8, 0);
+      // Reset after shake
+      setTimeout(() => {
+        setPinDigits([0, 0, 0, 0]);
+        setPinIndex(0);
+        setPinError(false);
+      }, 500);
+    }
+  };
+
   useEffect(() => {
     if (!input) return;
 
     const now = Date.now();
-    if (now - lastInputTime.current < INPUT_DELAY) return;
+    if (now - mountTime.current < 500) return;
 
     const { buttons, axes } = input;
 
-    // Navigation
-    let direction = 0;
-    if (buttons[12] || axes[1] < -0.5) direction = -1; // Up
-    if (buttons[13] || axes[1] > 0.5) direction = 1; // Down
+    // PIN pad controls
+    if (viewMode === "password") {
+      if (now - lastInputTime.current < PIN_INPUT_DELAY) return;
 
-    if (direction !== 0) {
-      if (viewMode === "list") {
+      // Left/Right to move between digits
+      if (buttons[14] || axes[0] < -0.5) {
+        setPinIndex((prev) => Math.max(0, prev - 1));
+        vibrate(20, 0.2, 0);
+        lastInputTime.current = now;
+      }
+      if (buttons[15] || axes[0] > 0.5) {
+        setPinIndex((prev) => Math.min(3, prev + 1));
+        vibrate(20, 0.2, 0);
+        lastInputTime.current = now;
+      }
+
+      // Up/Down to change digit value
+      if (buttons[12] || axes[1] < -0.5) {
+        setPinDigits((prev) => {
+          const newDigits = [...prev];
+          newDigits[pinIndex] = (newDigits[pinIndex] + 1) % 10;
+          return newDigits;
+        });
+        vibrate(20, 0.2, 0);
+        lastInputTime.current = now;
+      }
+      if (buttons[13] || axes[1] > 0.5) {
+        setPinDigits((prev) => {
+          const newDigits = [...prev];
+          newDigits[pinIndex] = (newDigits[pinIndex] - 1 + 10) % 10;
+          return newDigits;
+        });
+        vibrate(20, 0.2, 0);
+        lastInputTime.current = now;
+      }
+
+      // X to confirm
+      if (buttons[0] && now - lastInputTime.current > 300) {
+        handlePinSubmit();
+        lastInputTime.current = now;
+      }
+
+      // O to cancel
+      if (buttons[1] && now - lastInputTime.current > 300) {
+        setViewMode("list");
+        setPinDigits([0, 0, 0, 0]);
+        setPinIndex(0);
+        setPinError(false);
+        vibrate(50, 0.5, 0);
+        lastInputTime.current = now;
+      }
+
+      return;
+    }
+
+    if (now - lastInputTime.current < INPUT_DELAY) return;
+
+    // Workout list navigation (horizontal)
+    if (viewMode === "list") {
+      let hDirection = 0;
+      if (buttons[14] || axes[0] < -0.5) hDirection = -1;
+      if (buttons[15] || axes[0] > 0.5) hDirection = 1;
+
+      if (hDirection !== 0) {
         setFocusedWorkoutIndex((prev) => {
-          let next = prev + direction;
+          let next = prev + hDirection;
           if (next < 0) next = workouts.length - 1;
           if (next >= workouts.length) next = 0;
           return next;
         });
-      } else {
+        vibrate(30, 0.3, 0);
+        lastInputTime.current = now;
+      }
+    }
+
+    // Exercise list navigation (vertical)
+    if (viewMode === "detail") {
+      let vDirection = 0;
+      if (buttons[12] || axes[1] < -0.5) vDirection = -1;
+      if (buttons[13] || axes[1] > 0.5) vDirection = 1;
+
+      if (vDirection !== 0 && selectedWorkout) {
         setFocusedExerciseIndex((prev) => {
-          const exercises = workouts[focusedWorkoutIndex].exercises;
-          let next = prev + direction;
+          const exercises = selectedWorkout.exercises;
+          let next = prev + vDirection;
           if (next < 0) next = exercises.length - 1;
           if (next >= exercises.length) next = 0;
           return next;
         });
+        vibrate(30, 0.3, 0);
+        lastInputTime.current = now;
       }
-      vibrate(30, 0.3, 0);
-      lastInputTime.current = now;
     }
 
-    // Select (✕ button) - Enter workout detail
+    // Select (✕ button)
     if (buttons[0] && viewMode === "list" && now - lastInputTime.current > 300) {
       setViewMode("detail");
       setFocusedExerciseIndex(0);
@@ -123,42 +240,58 @@ export default function WorkoutsHub() {
       lastInputTime.current = now;
     }
 
-    // Back (◯ button) - Go back to list or close modal
+    // L1/R1 to toggle admin mode
+    if ((buttons[4] || buttons[5]) && (viewMode === "list" || viewMode === "detail") && now - lastInputTime.current > 300) {
+      if (isAdmin) {
+        setIsAdmin(false);
+        vibrate(50, 0.5, 0);
+      } else {
+        setViewMode("password");
+        setPinDigits([0, 0, 0, 0]);
+        setPinIndex(0);
+        vibrate(50, 0.5, 0);
+      }
+      lastInputTime.current = now;
+    }
+
+    // Back (◯ button)
     if (buttons[1] && now - lastInputTime.current > 300) {
       if (viewMode === "addExercise") {
         setViewMode("detail");
       } else if (viewMode === "detail") {
         setViewMode("list");
+      } else {
+        router.push("/");
       }
       vibrate(50, 0.5, 0);
       lastInputTime.current = now;
     }
 
-    // Triangle button (button 3) - Add exercise when in detail view
-    if (buttons[3] && viewMode === "detail" && now - lastInputTime.current > 300) {
+    // Triangle button - Add exercise (admin only)
+    if (buttons[3] && viewMode === "detail" && isAdmin && now - lastInputTime.current > 300) {
       setViewMode("addExercise");
       setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined, restSeconds: 60 });
       vibrate(50, 0.5, 0);
       lastInputTime.current = now;
     }
 
-    // Square button (button 2) - Delete exercise when in detail view
-    if (buttons[2] && viewMode === "detail" && selectedExercise && now - lastInputTime.current > 300) {
+    // Square button - Delete exercise (admin only)
+    if (buttons[2] && viewMode === "detail" && isAdmin && selectedExercise && now - lastInputTime.current > 300) {
       handleDeleteExercise(focusedExerciseIndex);
       vibrate(50, 0.5, 0);
       lastInputTime.current = now;
     }
-  }, [input, viewMode, focusedWorkoutIndex, workouts, vibrate, focusedExerciseIndex, selectedExercise]);
+  }, [input, viewMode, workouts.length, selectedWorkout, vibrate, router, isAdmin, selectedExercise, focusedExerciseIndex, pinIndex]);
 
   const handleAddExercise = () => {
-    if (!newExercise.name) return;
+    if (!newExercise.name || !isAdmin) return;
 
     const exercise: Exercise = {
       id: `custom-${Date.now()}`,
       name: newExercise.name,
       sets: newExercise.sets || 3,
       reps: newExercise.reps || 10,
-      weight: newExercise.weight ? Math.round(newExercise.weight * 2.205) : undefined, // Convert kg to lbs for storage
+      weight: newExercise.weight ? Math.round(newExercise.weight * 2.205) : undefined,
       restSeconds: newExercise.restSeconds || 60,
     };
 
@@ -176,6 +309,8 @@ export default function WorkoutsHub() {
   };
 
   const handleDeleteExercise = (index: number) => {
+    if (!isAdmin) return;
+
     setWorkouts(prev => {
       const updated = [...prev];
       updated[focusedWorkoutIndex] = {
@@ -201,38 +336,78 @@ export default function WorkoutsHub() {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:48px_48px]" />
       </div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8 max-w-6xl mx-auto w-full relative z-10">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-            <Dumbbell size={28} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              {viewMode === "list" ? "Workouts" : selectedWorkout.name}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {viewMode === "list" ? "Select a workout" : selectedWorkout.description}
-            </p>
-          </div>
-        </div>
-
-        {(viewMode === "detail" || viewMode === "addExercise") && selectedWorkout && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setViewMode("addExercise")}
-              className="flex items-center gap-2 bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 rounded-full px-4 py-2 hover:bg-cyan-500/30 transition-colors"
+      {/* PIN Pad Modal */}
+      <AnimatePresence>
+        {viewMode === "password" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1, x: pinError ? [0, -10, 10, -10, 10, 0] : 0 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ x: { duration: 0.4 } }}
+              className="bg-gray-900 border border-gray-800 rounded-2xl p-8 w-full max-w-sm"
             >
-              <Plus size={16} />
-              <span className="text-sm">Add Exercise</span>
-            </button>
-            <div className="flex items-center gap-3 bg-gray-900/60 border border-gray-800 rounded-full px-4 py-2 backdrop-blur-sm">
-              <Timer size={16} className="text-cyan-400" />
-              <span className="text-sm text-gray-300">{selectedWorkout.estimatedMinutes} min</span>
-            </div>
-          </div>
+              <div className="flex items-center justify-center gap-3 mb-8">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                  <Lock size={24} className="text-amber-400" />
+                </div>
+              </div>
+
+              <h2 className="text-xl font-bold text-white text-center mb-2">Enter PIN</h2>
+              <p className="text-sm text-gray-500 text-center mb-8">Use D-pad to enter your 4-digit PIN</p>
+
+              {/* PIN Display */}
+              <div className="flex justify-center gap-4 mb-8">
+                {pinDigits.map((digit, i) => (
+                  <div
+                    key={i}
+                    className={`w-16 h-20 rounded-xl border-2 flex items-center justify-center text-4xl font-bold transition-all ${
+                      i === pinIndex
+                        ? "border-cyan-500 bg-cyan-500/10 text-cyan-400 scale-110"
+                        : "border-gray-700 bg-gray-800/50 text-white"
+                    } ${pinError ? "border-red-500" : ""}`}
+                  >
+                    {digit}
+                  </div>
+                ))}
+              </div>
+
+              {/* Instructions */}
+              <div className="flex flex-col gap-2 text-xs text-gray-500 mb-6">
+                <div className="flex justify-between">
+                  <span className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-gray-800 border border-gray-700 rounded">↑↓</kbd>
+                    Change digit
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-gray-800 border border-gray-700 rounded">←→</kbd>
+                    Move
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-blue-400">✕</kbd>
+                    Confirm
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-red-400">○</kbd>
+                    Cancel
+                  </span>
+                </div>
+              </div>
+
+              {pinError && (
+                <p className="text-red-400 text-sm text-center">Incorrect PIN</p>
+              )}
+            </motion.div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
 
       {/* Add Exercise Modal */}
       <AnimatePresence>
@@ -335,14 +510,88 @@ export default function WorkoutsHub() {
         )}
       </AnimatePresence>
 
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8 max-w-6xl mx-auto w-full relative z-10">
+        <div className="flex items-center gap-4">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
+            style={{
+              backgroundColor: viewMode === "detail" && selectedWorkout ? `${selectedWorkout.color}20` : "rgb(6 182 212 / 0.2)",
+              boxShadow: viewMode === "detail" && selectedWorkout ? `0 0 30px ${selectedWorkout.color}30` : "0 0 30px rgba(6,182,212,0.3)"
+            }}
+          >
+            <Dumbbell size={28} style={{ color: viewMode === "detail" && selectedWorkout ? selectedWorkout.color : "#06b6d4" }} />
+          </div>
+          <div>
+            <h1
+              className="text-3xl font-bold bg-clip-text text-transparent"
+              style={{
+                backgroundImage: viewMode === "detail" && selectedWorkout
+                  ? `linear-gradient(to right, ${selectedWorkout.color}, #a855f7)`
+                  : "linear-gradient(to right, #22d3ee, #a855f7)"
+              }}
+            >
+              {viewMode === "list" || viewMode === "password" ? "Workouts" : selectedWorkout?.name}
+            </h1>
+            <p className="text-gray-500 text-sm">
+              {viewMode === "list" || viewMode === "password" ? "Push • Pull • Legs" : selectedWorkout?.description}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Admin toggle */}
+          <button
+            onClick={() => {
+              if (isAdmin) {
+                setIsAdmin(false);
+              } else {
+                setViewMode("password");
+                setPinDigits([0, 0, 0, 0]);
+                setPinIndex(0);
+              }
+            }}
+            className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-colors ${
+              isAdmin
+                ? "bg-amber-500/20 border-amber-500/50 text-amber-400"
+                : "bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            {isAdmin ? <Unlock size={16} /> : <Lock size={16} />}
+            <span className="text-sm">{isAdmin ? "Admin" : "Locked"}</span>
+          </button>
+
+          {viewMode === "detail" && selectedWorkout && (
+            <>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setViewMode("addExercise");
+                    setNewExercise({ name: "", sets: 3, reps: 10, weight: undefined, restSeconds: 60 });
+                  }}
+                  className="flex items-center gap-2 bg-cyan-500/20 border border-cyan-500/50 text-cyan-400 rounded-full px-4 py-2 hover:bg-cyan-500/30 transition-colors"
+                >
+                  <Plus size={16} />
+                  <span className="text-sm">Add</span>
+                </button>
+              )}
+              <div className="flex items-center gap-3 bg-gray-900/60 border border-gray-800 rounded-full px-4 py-2 backdrop-blur-sm">
+                <Timer size={16} style={{ color: selectedWorkout.color }} />
+                <span className="text-sm text-gray-300">{selectedWorkout.estimatedMinutes} min</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       <AnimatePresence mode="wait">
-        {viewMode === "list" ? (
+        {(viewMode === "list" || viewMode === "password") ? (
           <motion.div
             key="list"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-6xl mx-auto w-full relative z-10"
+            className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto w-full relative z-10"
           >
             {workouts.map((workout, index) => {
               const isFocused = index === focusedWorkoutIndex;
@@ -351,10 +600,14 @@ export default function WorkoutsHub() {
                   key={workout.id}
                   className={`p-5 rounded-xl border relative overflow-hidden transition-all duration-200 cursor-pointer
                     ${isFocused
-                      ? "bg-gray-900/80 border-cyan-500/50 scale-[1.02] shadow-[0_0_30px_rgba(6,182,212,0.15)]"
+                      ? "bg-gray-900/80 scale-[1.02]"
                       : "bg-gray-900/40 border-gray-800/50 opacity-60 hover:opacity-80"
                     }
                   `}
+                  style={{
+                    borderColor: isFocused ? `${workout.color}50` : undefined,
+                    boxShadow: isFocused ? `0 0 30px ${workout.color}20` : undefined,
+                  }}
                   onClick={() => {
                     setFocusedWorkoutIndex(index);
                     setViewMode("detail");
@@ -362,7 +615,10 @@ export default function WorkoutsHub() {
                   }}
                 >
                   {isFocused && (
-                    <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/10 to-transparent pointer-events-none" />
+                    <div
+                      className="absolute inset-0 pointer-events-none"
+                      style={{ background: `linear-gradient(to bottom, ${workout.color}15, transparent)` }}
+                    />
                   )}
 
                   <div className="flex justify-between items-start mb-3 relative z-10">
@@ -377,7 +633,7 @@ export default function WorkoutsHub() {
                         {workout.name}
                       </h3>
                     </div>
-                    <ChevronRight className={`${isFocused ? "text-cyan-400" : "text-gray-700"}`} size={20} />
+                    <ChevronRight style={{ color: isFocused ? workout.color : "#374151" }} size={20} />
                   </div>
 
                   <div className="flex gap-4 mb-3 text-xs text-gray-500 relative z-10">
@@ -393,8 +649,8 @@ export default function WorkoutsHub() {
                   <div className="space-y-1 relative z-10">
                     {workout.exercises.slice(0, 3).map((ex, i) => (
                       <div key={i} className="text-xs text-gray-500 flex items-center gap-2">
-                        <div className="w-1 h-1 rounded-full bg-cyan-500/50" />
-                        {ex.name}
+                        <div className="w-1 h-1 rounded-full" style={{ backgroundColor: `${workout.color}80` }} />
+                        <span className="capitalize">{ex.name}</span>
                       </div>
                     ))}
                     {workout.exercises.length > 3 && (
@@ -406,7 +662,13 @@ export default function WorkoutsHub() {
                     <motion.div
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="absolute bottom-3 right-3 text-[10px] font-medium text-cyan-400 flex items-center gap-1.5 bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded-full"
+                      className="absolute bottom-3 right-3 text-[10px] font-medium flex items-center gap-1.5 px-2 py-1 rounded-full"
+                      style={{
+                        backgroundColor: `${workout.color}15`,
+                        borderColor: `${workout.color}30`,
+                        color: workout.color,
+                        border: "1px solid"
+                      }}
                     >
                       <kbd className="text-blue-400">✕</kbd>
                       View
@@ -433,10 +695,13 @@ export default function WorkoutsHub() {
                     key={exercise.id}
                     className={`p-4 rounded-xl border cursor-pointer relative transition-all duration-200
                       ${isFocused
-                        ? "bg-gray-900/80 border-cyan-500/50 scale-[1.02]"
+                        ? "bg-gray-900/80 scale-[1.02]"
                         : "bg-gray-900/40 border-gray-800/50 opacity-50 hover:opacity-70"
                       }
                     `}
+                    style={{
+                      borderColor: isFocused ? `${selectedWorkout.color}50` : undefined,
+                    }}
                     onClick={() => setFocusedExerciseIndex(index)}
                   >
                     <div className="flex justify-between items-center">
@@ -450,11 +715,14 @@ export default function WorkoutsHub() {
                       </div>
                       <div className="flex items-center gap-2">
                         {exercise.weight && (
-                          <div className={`text-sm font-mono ${isFocused ? "text-cyan-400" : "text-gray-600"}`}>
+                          <div
+                            className="text-sm font-mono"
+                            style={{ color: isFocused ? selectedWorkout.color : "#4b5563" }}
+                          >
                             {Math.round(exercise.weight / 2.205)} kg
                           </div>
                         )}
-                        {isFocused && (
+                        {isFocused && isAdmin && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -470,7 +738,8 @@ export default function WorkoutsHub() {
                     {isFocused && (
                       <motion.div
                         layoutId="exercise-indicator"
-                        className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-500 to-purple-500 rounded-l-xl"
+                        className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl"
+                        style={{ backgroundColor: selectedWorkout.color }}
                       />
                     )}
                   </motion.div>
@@ -490,17 +759,24 @@ export default function WorkoutsHub() {
                     className="h-full flex flex-col"
                   >
                     {/* Exercise Image */}
-                    <div className="relative w-full h-48 md:h-64 bg-gray-950/50 rounded-xl mb-6 flex items-center justify-center overflow-hidden border border-gray-800/50">
+                    <div className="relative w-full h-48 md:h-64 rounded-xl mb-6 flex items-center justify-center overflow-hidden border border-gray-800/50 bg-gradient-to-br from-gray-800 via-gray-900 to-gray-950">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:16px_16px]" />
+
                       {exerciseData.get(selectedExercise.name)?.image ? (
                         <img
                           src={exerciseData.get(selectedExercise.name)?.image || ""}
                           alt={selectedExercise.name}
-                          className="h-full object-contain"
+                          className="h-full object-contain relative z-10 drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
                         />
                       ) : (
-                        <div className="text-center">
-                          <Dumbbell size={48} className="text-gray-700 mx-auto mb-2" />
-                          <p className="text-gray-600 text-sm">Loading image...</p>
+                        <div className="text-center relative z-10">
+                          <div
+                            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3"
+                            style={{ backgroundColor: `${selectedWorkout.color}20` }}
+                          >
+                            <Dumbbell size={32} style={{ color: selectedWorkout.color }} />
+                          </div>
+                          <p className="text-gray-500 text-sm">Loading image...</p>
                         </div>
                       )}
                     </div>
@@ -513,7 +789,7 @@ export default function WorkoutsHub() {
                     {/* Stats Grid */}
                     <div className="grid grid-cols-3 gap-4 mb-6">
                       <div className="bg-gray-950/50 p-4 rounded-xl border border-gray-800/50 text-center">
-                        <div className="text-3xl font-bold text-cyan-400">{selectedExercise.sets}</div>
+                        <div className="text-3xl font-bold" style={{ color: selectedWorkout.color }}>{selectedExercise.sets}</div>
                         <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Sets</div>
                       </div>
                       <div className="bg-gray-950/50 p-4 rounded-xl border border-gray-800/50 text-center">
@@ -532,7 +808,7 @@ export default function WorkoutsHub() {
                     <div className="flex gap-4 text-sm">
                       {selectedExercise.restSeconds && (
                         <div className="flex items-center gap-2 text-gray-400">
-                          <RotateCcw size={16} className="text-cyan-500" />
+                          <RotateCcw size={16} style={{ color: selectedWorkout.color }} />
                           <span>{selectedExercise.restSeconds}s rest</span>
                         </div>
                       )}
@@ -545,18 +821,14 @@ export default function WorkoutsHub() {
                         </div>
                       )}
                     </div>
-
-                    {/* Notes */}
-                    {selectedExercise.notes && (
-                      <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                        <p className="text-sm text-amber-300">{selectedExercise.notes}</p>
-                      </div>
-                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              <div className="absolute top-0 right-0 w-48 h-48 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
+              <div
+                className="absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl pointer-events-none opacity-20"
+                style={{ backgroundColor: selectedWorkout?.color }}
+              />
             </div>
           </motion.div>
         ) : null}
@@ -567,37 +839,61 @@ export default function WorkoutsHub() {
         <div className="flex items-center gap-4 text-xs text-gray-600">
           <span className="flex items-center gap-1.5">
             <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-cyan-400 font-mono text-[10px]">
-              ↑↓
+              {viewMode === "list" ? "←→" : "↑↓"}
             </kbd>
             Navigate
           </span>
           {viewMode === "list" ? (
-            <span className="flex items-center gap-1.5">
-              <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-blue-400 font-mono text-[10px]">
-                ✕
-              </kbd>
-              View
-            </span>
-          ) : (
             <>
               <span className="flex items-center gap-1.5">
+                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-blue-400 font-mono text-[10px]">
+                  ✕
+                </kbd>
+                Select
+              </span>
+              <span className="flex items-center gap-1.5">
                 <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-red-400 font-mono text-[10px]">
-                  ◯
+                  ○
                 </kbd>
                 Back
               </span>
               <span className="flex items-center gap-1.5">
-                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-green-400 font-mono text-[10px]">
-                  △
+                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-amber-400 font-mono text-[10px]">
+                  L1/R1
                 </kbd>
-                Add
+                {isAdmin ? "Lock" : "Admin"}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="flex items-center gap-1.5">
+                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-red-400 font-mono text-[10px]">
+                  ○
+                </kbd>
+                Back
               </span>
               <span className="flex items-center gap-1.5">
-                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-pink-400 font-mono text-[10px]">
-                  □
+                <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-amber-400 font-mono text-[10px]">
+                  L1/R1
                 </kbd>
-                Delete
+                {isAdmin ? "Lock" : "Admin"}
               </span>
+              {isAdmin && (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-green-400 font-mono text-[10px]">
+                      △
+                    </kbd>
+                    Add
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <kbd className="px-2 py-1 bg-gray-900 border border-gray-800 rounded text-pink-400 font-mono text-[10px]">
+                      □
+                    </kbd>
+                    Delete
+                  </span>
+                </>
+              )}
             </>
           )}
         </div>
