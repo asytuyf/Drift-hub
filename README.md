@@ -7,6 +7,8 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.0-blue)](https://tailwindcss.com/)
 [![Vercel](https://img.shields.io/badge/Vercel-Deployed-black)](https://nba-controller-fx9qamnif-asytuyfs-projects.vercel.app)
 
+**Links:** [Live site](https://drift-hub.vercel.app) · [Vercel dashboard](https://vercel.com/asytuyfs-projects/drift-hub) · [Deployments](https://vercel.com/asytuyfs-projects/drift-hub/deployments) · [Logs](https://vercel.com/asytuyfs-projects/drift-hub/logs) · [Env vars](https://vercel.com/asytuyfs-projects/drift-hub/settings/environment-variables)
+
 ## Features
 
 -   **NBA Map**: See all 30 NBA teams on a map of the US.
